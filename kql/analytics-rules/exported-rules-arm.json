@@ -1,0 +1,368 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "workspace": {
+            "type": "String"
+        }
+    },
+    "resources": [
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/61b8d126-4e25-4785-a5b2-370ba4b7cb57')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/61b8d126-4e25-4785-a5b2-370ba4b7cb57')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "Discovery utility burst on a single host",
+                "description": "Detects four or more distinct system discovery utilities executing on one host within a fifteen-minute window. Each command is legitimate in isolation; the pattern is reconnaissance. Defender for Endpoint raised no alert and recorded no evidence for these utilities during simulation.",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "let LookbackWindow = 4h;\r\nlet BucketSize = 15m;\r\nlet DistinctToolThreshold = 4;\r\nlet DiscoveryTools = dynamic([\r\n    \"ipconfig.exe\", \"netstat.exe\", \"arp.exe\", \"nbtstat.exe\", \"route.exe\",\r\n    \"netsh.exe\", \"net.exe\", \"net1.exe\", \"whoami.exe\", \"systeminfo.exe\",\r\n    \"hostname.exe\", \"tasklist.exe\", \"query.exe\", \"quser.exe\", \"nltest.exe\",\r\n    \"dsquery.exe\", \"wmic.exe\"\r\n]);\r\nDeviceProcessEvents\r\n| where TimeGenerated > ago(LookbackWindow)\r\n| extend FileName = tolower(FileName)\r\n| where FileName in~ (DiscoveryTools)\r\n| summarize\r\n    DistinctTools = dcount(FileName),\r\n    ToolsUsed     = make_set(FileName),\r\n    Executions    = count(),\r\n    ParentProcesses = make_set(InitiatingProcessFileName, 5),\r\n    FirstSeen     = min(TimeGenerated),\r\n    LastSeen      = max(TimeGenerated)\r\n    by DeviceName, AccountName, bin(TimeGenerated, BucketSize)\r\n| where DistinctTools >= DistinctToolThreshold\r\n| extend BurstDuration = LastSeen - FirstSeen\r\n| project TimeGenerated = FirstSeen, DeviceName, AccountName,\r\n          DistinctTools, Executions, BurstDuration, ToolsUsed, ParentProcesses\r\n| order by TimeGenerated desc",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT4H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "Discovery"
+                ],
+                "techniques": [
+                    "T1016",
+                    "T1049",
+                    "T1087",
+                    "T1082"
+                ],
+                "subTechniques": [
+                    "T1087.001"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": true,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": [
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "AccountName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "HostName",
+                                "columnName": "DeviceName"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": null
+            }
+        },
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/0bf32d50-436a-4e7c-8ef4-fc5923ddbde9')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/0bf32d50-436a-4e7c-8ef4-fc5923ddbde9')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "MFA method registered from an unfamiliar source address",
+                "description": "Detects enrolment of a new authentication method from a source address the account has not previously signed in from. An attacker with valid credentials commonly registers their own MFA method, which survives a password reset. Legitimate users enrol from addresses they already authenticate from.",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "let LookbackPeriod = 30d;\r\nlet DetectionWindow = 4h;\r\nlet KnownAddresses =\r\n    SigninLogs\r\n    | where TimeGenerated between (ago(LookbackPeriod) .. ago(DetectionWindow))\r\n    | where ResultType == 0\r\n    | distinct UserPrincipalName, IPAddress;\r\nAuditLogs\r\n| where TimeGenerated > ago(DetectionWindow)\r\n| where OperationName has \"security info\"\r\n| where Result == \"success\"\r\n| extend UserPrincipalName = tostring(InitiatedBy.user.userPrincipalName)\r\n| extend IPAddress         = tostring(InitiatedBy.user.ipAddress)\r\n| join kind=leftanti (KnownAddresses) on UserPrincipalName, IPAddress\r\n| summarize\r\n    TimeGenerated = min(TimeGenerated),\r\n    Operations = make_set(OperationName)\r\n    by UserPrincipalName, IPAddress\r\n| order by TimeGenerated desc",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT4H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "Persistence"
+                ],
+                "techniques": [
+                    "T1556"
+                ],
+                "subTechniques": [
+                    "T1556.006"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": true,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": [
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "UserPrincipalName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "IP",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Address",
+                                "columnName": "IPAddress"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": null
+            }
+        },
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/a48a4fb0-2398-4913-bd85-8123d96274c1')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/a48a4fb0-2398-4913-bd85-8123d96274c1')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "Registry Run key written by non-standard",
+                "description": "Detects writes to autorun registry keys. Installers write these legitimately, so the discriminator is which process performs the write and whether the target path is user-writable. Baseline observed only msedge.exe writing MicrosoftEdgeAutoLaunch, pointing at Program Files.",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "let LookbackWindow = 1h;\r\nlet AutorunKeys = dynamic([\r\n    @\"\\CurrentVersion\\Run\",\r\n    @\"\\CurrentVersion\\RunOnce\",\r\n    @\"\\CurrentVersion\\RunOnceEx\",\r\n    @\"\\CurrentVersion\\Policies\\Explorer\\Run\",\r\n    @\"\\CurrentVersion\\Winlogon\"\r\n]);\r\nDeviceRegistryEvents\r\n| where TimeGenerated > ago(LookbackWindow)\r\n| where ActionType in (\"RegistryValueSet\", \"RegistryKeyCreated\")\r\n| where RegistryKey has_any (AutorunKeys)\r\n| extend WritesToUserWritablePath = RegistryValueData has_any (\r\n    @\"\\AppData\\\", @\"\\Temp\\\", @\"\\Users\\Public\\\", @\"\\ProgramData\\\")\r\n| project\r\n    TimeGenerated, DeviceName, RegistryKey, RegistryValueName,\r\n    RegistryValueData, WritesToUserWritablePath, ActionType,\r\n    InitiatingProcessFileName, InitiatingProcessFolderPath,\r\n    InitiatingProcessAccountName, ReportId\r\n| order by TimeGenerated desc",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT1H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "Persistence"
+                ],
+                "techniques": [
+                    "T1547"
+                ],
+                "subTechniques": [
+                    "T1547.001"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": true,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": [
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "InitiatingProcessAccountName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "HostName",
+                                "columnName": "DeviceName"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": null
+            }
+        },
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/c14a267e-70ae-4d44-bf39-2100416d6f68')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/c14a267e-70ae-4d44-bf39-2100416d6f68')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "Encoded or obfuscated PowerShell execution",
+                "description": "Detects PowerShell invoked with base64-encoded commands, hidden windows, or bypassed execution policy. The signal is not PowerShell itself but PowerShell asked to conceal what it is doing. No legitimate use of these arguments was observed in the environment baseline.",
+                "severity": "Medium",
+                "enabled": true,
+                "query": "let LookbackWindow = 1h;\r\nlet SuspiciousArguments = dynamic([\r\n    \"-enc\", \"-EncodedCommand\", \"FromBase64String\",\r\n    \"-w hidden\", \"-windowstyle hidden\",\r\n    \"-nop\", \"-noprofile\", \"-ExecutionPolicy Bypass\",\r\n    \"IEX\", \"Invoke-Expression\", \"DownloadString\", \"DownloadFile\"\r\n]);\r\nDeviceProcessEvents\r\n| where TimeGenerated > ago(LookbackWindow)\r\n| where FileName in~ (\"powershell.exe\", \"pwsh.exe\", \"powershell_ise.exe\")\r\n| where ProcessCommandLine has_any (SuspiciousArguments)\r\n| project\r\n    TimeGenerated, DeviceName, AccountName, AccountDomain,\r\n    FileName, ProcessCommandLine,\r\n    InitiatingProcessFileName, InitiatingProcessFolderPath,\r\n    InitiatingProcessCommandLine, InitiatingProcessAccountName, ReportId\r\n| order by TimeGenerated desc",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT1H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "Execution"
+                ],
+                "techniques": [
+                    "T1059"
+                ],
+                "subTechniques": [
+                    "T1059.001"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": true,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": null,
+                "customDetails": null,
+                "entityMappings": [
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Name",
+                                "columnName": "AccountName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "Host",
+                        "fieldMappings": [
+                            {
+                                "identifier": "HostName",
+                                "columnName": "DeviceName"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": null
+            }
+        },
+        {
+            "id": "[concat(resourceId('Microsoft.OperationalInsights/workspaces/providers', parameters('workspace'), 'Microsoft.SecurityInsights'),'/alertRules/64a33b86-360f-426a-bfbe-46c272d97370')]",
+            "name": "[concat(parameters('workspace'),'/Microsoft.SecurityInsights/64a33b86-360f-426a-bfbe-46c272d97370')]",
+            "type": "Microsoft.OperationalInsights/workspaces/providers/alertRules",
+            "kind": "Scheduled",
+            "apiVersion": "2023-12-01-preview",
+            "properties": {
+                "displayName": "Credential guessing followed by successful sign-in",
+                "description": "",
+                "severity": "High",
+                "enabled": true,
+                "query": "let LookbackWindow = 1h;\r\nlet FailureThreshold = 5;\r\nlet failures =\r\n    SigninLogs\r\n    | where TimeGenerated > ago(LookbackWindow)\r\n    | where ResultType == 50126\r\n    | summarize\r\n        FailureCount = count(),\r\n        FirstFailure = min(TimeGenerated),\r\n        LastFailure  = max(TimeGenerated)\r\n        by UserPrincipalName, IPAddress\r\n    | where FailureCount >= FailureThreshold;\r\nSigninLogs\r\n| where TimeGenerated > ago(LookbackWindow)\r\n| where ResultType == 0\r\n| join kind=inner failures on UserPrincipalName, IPAddress\r\n| where TimeGenerated > LastFailure\r\n| extend\r\n    TimeToCompromise = TimeGenerated - FirstFailure,\r\n    Location = strcat(tostring(LocationDetails.city), \", \", tostring(LocationDetails.countryOrRegion))\r\n| project\r\n    TimeGenerated,\r\n    UserPrincipalName,\r\n    IPAddress,\r\n    Location,\r\n    FailureCount,\r\n    FirstFailure,\r\n    LastFailure,\r\n    TimeToCompromise,\r\n    AppDisplayName,\r\n    UserAgent\r\n| order by TimeGenerated desc",
+                "queryFrequency": "PT1H",
+                "queryPeriod": "PT1H",
+                "triggerOperator": "GreaterThan",
+                "triggerThreshold": 0,
+                "suppressionDuration": "PT5H",
+                "suppressionEnabled": false,
+                "startTimeUtc": null,
+                "tactics": [
+                    "CredentialAccess",
+                    "InitialAccess"
+                ],
+                "techniques": [
+                    "T1110",
+                    "T1078"
+                ],
+                "subTechniques": [
+                    "T1110.001"
+                ],
+                "alertRuleTemplateName": null,
+                "incidentConfiguration": {
+                    "createIncident": true,
+                    "groupingConfiguration": {
+                        "enabled": true,
+                        "reopenClosedIncident": false,
+                        "lookbackDuration": "PT5H",
+                        "matchingMethod": "AllEntities",
+                        "groupByEntities": [],
+                        "groupByAlertDetails": [],
+                        "groupByCustomDetails": []
+                    }
+                },
+                "eventGroupingSettings": {
+                    "aggregationKind": "SingleAlert"
+                },
+                "alertDetailsOverride": {
+                    "alertDynamicProperties": []
+                },
+                "customDetails": {},
+                "entityMappings": [
+                    {
+                        "entityType": "Account",
+                        "fieldMappings": [
+                            {
+                                "identifier": "FullName",
+                                "columnName": "UserPrincipalName"
+                            }
+                        ]
+                    },
+                    {
+                        "entityType": "IP",
+                        "fieldMappings": [
+                            {
+                                "identifier": "Address",
+                                "columnName": "IPAddress"
+                            }
+                        ]
+                    }
+                ],
+                "sentinelEntitiesMappings": null,
+                "templateVersion": null
+            }
+        }
+    ]
+}

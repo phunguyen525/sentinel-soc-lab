@@ -1,0 +1,19 @@
+let LookbackPeriod = 30d;
+let DetectionWindow = 4h;
+let KnownAddresses =
+    SigninLogs
+    | where TimeGenerated between (ago(LookbackPeriod) .. ago(DetectionWindow))
+    | where ResultType == 0
+    | distinct UserPrincipalName, IPAddress;
+AuditLogs
+| where TimeGenerated > ago(DetectionWindow)
+| where OperationName has "security info"
+| where Result == "success"
+| extend UserPrincipalName = tostring(InitiatedBy.user.userPrincipalName)
+| extend IPAddress         = tostring(InitiatedBy.user.ipAddress)
+| join kind=leftanti (KnownAddresses) on UserPrincipalName, IPAddress
+| summarize
+    TimeGenerated = min(TimeGenerated),
+    Operations    = make_set(OperationName)
+    by UserPrincipalName, IPAddress
+| order by TimeGenerated desc

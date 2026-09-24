@@ -1,0 +1,17 @@
+let LookbackWindow = 1h;
+let SuspiciousArguments = dynamic([
+    "-enc", "-EncodedCommand", "FromBase64String",
+    "-w hidden", "-windowstyle hidden",
+    "-nop", "-noprofile", "-ExecutionPolicy Bypass",
+    "IEX", "Invoke-Expression", "DownloadString", "DownloadFile"
+]);
+DeviceProcessEvents
+| where TimeGenerated > ago(LookbackWindow)
+| where FileName in~ ("powershell.exe", "pwsh.exe", "powershell_ise.exe")
+| where ProcessCommandLine has_any (SuspiciousArguments)
+| project
+    TimeGenerated, DeviceName, AccountName, AccountDomain,
+    FileName, ProcessCommandLine,
+    InitiatingProcessFileName, InitiatingProcessFolderPath,
+    InitiatingProcessCommandLine, InitiatingProcessAccountName, ReportId
+| order by TimeGenerated desc

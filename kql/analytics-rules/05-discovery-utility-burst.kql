@@ -1,0 +1,29 @@
+let LookbackWindow = 4h;
+let BucketSize = 15m;
+let DistinctToolThreshold = 4;
+let DiscoveryTools = dynamic([
+    "ipconfig.exe", "netstat.exe", "arp.exe", "nbtstat.exe", "route.exe",
+    "netsh.exe", "net.exe", "net1.exe", "whoami.exe", "systeminfo.exe",
+    "hostname.exe", "tasklist.exe", "query.exe", "quser.exe", "nltest.exe",
+    "dsquery.exe", "wmic.exe"
+]);
+DeviceProcessEvents
+| where TimeGenerated > ago(LookbackWindow)
+| extend FileName = tolower(FileName)
+| where FileName in~ (DiscoveryTools)
+| summarize
+    DistinctTools   = dcount(FileName),
+    ToolsUsed       = make_set(FileName),
+    Executions      = count(),
+    ParentProcesses = make_set(InitiatingProcessFileName, 5),
+    FirstSeen       = min(TimeGenerated),
+    LastSeen        = max(TimeGenerated)
+    by DeviceName, AccountName, bin(TimeGenerated, BucketSize)
+| where DistinctTools >= DistinctToolThreshold
+| extend BurstDuration = LastSeen - FirstSeen
+| project
+    TimeGenerated = FirstSeen,
+    DeviceName, AccountName,
+    DistinctTools, Executions, BurstDuration,
+    ToolsUsed, ParentProcesses
+| order by TimeGenerated desc

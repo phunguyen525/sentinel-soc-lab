@@ -1,0 +1,20 @@
+let LookbackWindow = 1h;
+let AutorunKeys = dynamic([
+    @"\CurrentVersion\Run",
+    @"\CurrentVersion\RunOnce",
+    @"\CurrentVersion\RunOnceEx",
+    @"\CurrentVersion\Policies\Explorer\Run",
+    @"\CurrentVersion\Winlogon"
+]);
+DeviceRegistryEvents
+| where TimeGenerated > ago(LookbackWindow)
+| where ActionType in ("RegistryValueSet", "RegistryKeyCreated")
+| where RegistryKey has_any (AutorunKeys)
+| extend WritesToUserWritablePath = RegistryValueData has_any (
+    @"\AppData\", @"\Temp\", @"\Users\Public\", @"\ProgramData\")
+| project
+    TimeGenerated, DeviceName, RegistryKey, RegistryValueName,
+    RegistryValueData, WritesToUserWritablePath, ActionType,
+    InitiatingProcessFileName, InitiatingProcessFolderPath,
+    InitiatingProcessAccountName, ReportId
+| order by TimeGenerated desc

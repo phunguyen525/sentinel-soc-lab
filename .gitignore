@@ -1,0 +1,18 @@
+# Working files — never published
+_raw/
+
+# Exported query results may contain tenant identifiers
+*.csv
+
+# OS noise
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Before committing anything, confirm it contains none of:
+#   tenant ID / directory ID
+#   subscription ID
+#   workspace ID
+#   the *.onmicrosoft.com domain
+#   admin or user principal names
+#   source IP addresses belonging to a real network
